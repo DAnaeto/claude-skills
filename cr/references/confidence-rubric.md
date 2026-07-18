@@ -1,6 +1,6 @@
 # Confidence rubric for finding verification
 
-Give each verification agent: the diff (or relevant hunks), the finding's description, the list of relevant CLAUDE.md paths, and this rubric **verbatim**. The agent scores the finding 0–100. Keep only findings scoring **≥ 80**.
+Give each verification agent: the diff (or relevant hunks), the finding's description, the list of relevant CLAUDE.md paths, and this rubric **verbatim**. The agent scores the finding 0–100. The score **labels** the finding, it does not gate it: report every finding that scores above the false-positive floor, ranked by score. A score at/near **0** means the verifier refuted it (pre-existing, linter-caught, or no real scenario) — drop those. Everything else is reported, with **≥ 80** marked `CONFIRMED` and the rest `PLAUSIBLE` (carry the score + one-line reason so the reader can weigh it). The point of verification is to attach confidence, not to hide anything real that scored below a threshold.
 
 For issues flagged from CLAUDE.md instructions, the agent must double-check that the CLAUDE.md actually calls out that issue specifically.
 

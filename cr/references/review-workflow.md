@@ -20,7 +20,7 @@ export const meta = {
   description: 'Code-review lens fan-out with adversarial verification',
   phases: [
     { title: 'Review', detail: 'one agent per lens' },
-    { title: 'Verify', detail: 'refute each deduped finding, keep >= 80' },
+    { title: 'Verify', detail: 'score each deduped finding; report all but clear false positives, tiered by score' },
   ],
 }
 
@@ -81,13 +81,17 @@ const verified = await parallel(
       .then(v => ({ ...f, score: v ? v.score : 0, verify_reason: v ? v.reason : 'verifier died' }))
   )
 )
-const confirmed = verified.filter(Boolean).filter(f => f.score >= 80)
-const rejected = verified.filter(Boolean).filter(f => f.score < 80)
+// Verification LABELS, it does not gate: surface every finding that isn't an outright false
+// positive (score < 30 = refuted — pre-existing, linter-caught, or no real scenario), ordered
+// by score. The score becomes each finding's confidence tier at report time, not a survival cut.
+const reported = verified.filter(Boolean).filter(f => f.score >= 30)
+  .sort((a, b) => b.score - a.score)
+const dropped = verified.filter(Boolean).filter(f => f.score < 30)
   .map(f => ({ summary: f.summary, score: f.score, reason: f.verify_reason }))
-log(`${confirmed.length} confirmed (>=80), ${rejected.length} rejected`)
-return { confirmed, rejected, mentions }
+log(`${reported.length} reported (>=30, tiered by score), ${dropped.length} dropped as false positives`)
+return { reported, dropped, mentions }
 ```
 
-After the workflow returns: report `confirmed` via `ReportFindings` (corroborated + verified → `CONFIRMED`), weave `mentions` and notable `rejected` items into the prose overview where they add signal, and give the verdict. If the workflow is interrupted, resume with `{scriptPath, resumeFromRunId}` rather than relaunching.
+After the workflow returns: report **every** item in `reported` via `ReportFindings`, ordered by score — mark score ≥ 80 (or corroborated across lenses) `CONFIRMED` and the rest `PLAUSIBLE`, folding each `PLAUSIBLE` item's score + `verify_reason` into its `failure_scenario`/`summary` so the reader can weigh a lower-confidence finding rather than having it silently dropped. Weave `mentions` and the `dropped` clear-false-positives into the prose overview only where they add signal, and give the verdict. If the workflow is interrupted, resume with `{scriptPath, resumeFromRunId}` rather than relaunching.
 
 Depth knobs: `high` = the always-on lenses as workflow lenses; `xhigh` = + git-history and code-comment lenses; `max` = + prior-PRs lens and a second verification vote per finding (majority of 2-of-3 refuters).
