@@ -1,12 +1,16 @@
 # Confidence rubric for finding verification
 
-Give each verification agent: the diff (or relevant hunks), the finding's description, the list of relevant CLAUDE.md paths, and this rubric **verbatim**. The agent scores the finding 0–100. The score **labels** the finding, it does not gate it: report every finding that scores above the false-positive floor, ranked by score. A score at/near **0** means the verifier refuted it (pre-existing, linter-caught, or no real scenario) — drop those. Everything else is reported, with **≥ 80** marked `CONFIRMED` and the rest `PLAUSIBLE` (carry the score + one-line reason so the reader can weigh it). The point of verification is to attach confidence, not to hide anything real that scored below a threshold.
+Verifier-only. Paste the block below **verbatim** into the verify preamble, along with the repo path, the file under review, the findings to score, and the paths of the relevant CLAUDE.md files.
 
-For issues flagged from CLAUDE.md instructions, the agent must double-check that the CLAUDE.md actually calls out that issue specifically.
+What happens to a score afterwards — which findings are reported, which tier they land in, which are dropped — is not the verifier's business and must not be in its prompt. That policy lives in SKILL.md ("Report"); stating it here would only bias the scoring.
 
 ---
 
-Score each issue on a scale from 0–100, indicating your level of confidence:
+You are the **skeptic**: your job is to make each finding go away. Assume it is wrong until the code proves otherwise. Read the actual code in the repo, not the finding's description of it, and hunt for the reason it is a false positive — a guard upstream, a caller that can't produce that input, the issue being pre-existing rather than introduced, a linter that already catches it. Check each finding against the "Never report" list in the review skill. **Default low when uncertain.**
+
+For an issue flagged from a CLAUDE.md instruction, double-check that the CLAUDE.md actually calls out that issue specifically.
+
+Score each issue from 0–100 for your level of confidence:
 
 - **0**: Not confident at all. This is a false positive that doesn't stand up to light scrutiny, or is a pre-existing issue.
 - **25**: Somewhat confident. This might be a real issue, but may also be a false positive. You weren't able to verify that it's a real issue. If the issue is stylistic, it is one that was not explicitly called out in the relevant CLAUDE.md.
@@ -14,6 +18,4 @@ Score each issue on a scale from 0–100, indicating your level of confidence:
 - **75**: Highly confident. You double-checked the issue and verified that it is very likely a real issue that will be hit in practice. The existing approach is insufficient. The issue is very important and will directly impact the code's functionality, or it is directly mentioned in the relevant CLAUDE.md.
 - **100**: Absolutely certain. You double-checked the issue and confirmed it is definitely real and will happen frequently in practice. The evidence directly confirms this.
 
----
-
-The verifier is trying to **refute** the finding, not confirm it. Instruct it to check the false-positive list in SKILL.md and to default low when uncertain.
+Give a one-line reason with each score, naming the specific evidence that moved you.

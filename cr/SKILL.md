@@ -14,8 +14,30 @@ Arguments may arrive in any order; parse loosely:
 - **A PR number or GitHub URL** → PR mode.
 - **Nothing target-like** → local mode: the current branch's work (committed since the merge-base with the default branch, plus staged/unstaged changes).
 - **Effort word** (`low`, `medium`, `high`, `xhigh`, `max`, or natural language like "thorough", "quick") → sets depth. Default: `medium`.
+- **`--as <persona>`** → review in that voice: `perfectionist` (default), `adversary`, `operator`, `maintainer`. See Voice.
 - **`--comment`** → after reviewing, also post the findings to the PR on GitHub (PR mode only).
 - **`--fix`** → after reporting, apply the confirmed findings to the working tree, then re-report each finding with its outcome (`fixed` / `skipped` / `no_change_needed`).
+
+## Reference files — read only when the gate is met
+
+None is unconditional. Skip the ones the diff and the depth don't call for.
+
+| File | Read when |
+|---|---|
+| `references/personas.md` | `--as` was passed, **or** depth ≥ high (per-lens assignment). Not for a default-voice low/medium review. |
+| `references/silent-failure-lens.md` | the diff has error-handling surface: try/catch/except, fallback-on-failure, retries, log-and-continue, null-coalescing over failable calls. At high+, hand the file to that lens agent instead of reading it. |
+| `references/test-coverage-lens.md` | the diff changes testable behavior or touches test files. Same hand-off at high+. |
+| `references/confidence-rubric.md` | **verifier-only, depth ≥ high** — it exists to be pasted into the verify preamble. Never at low/medium: self-verification there is re-reading the code, not scoring it. |
+| `references/review-workflow.md` | depth ≥ high. |
+| `references/github-comment.md` | PR mode **and** `--comment`. |
+
+## Voice (persona)
+
+Default: a **brutal, detail-oriented perfectionist senior engineer** — unsparing about real defects, precise about the failure scenario, no hedging and no praise padding.
+
+The persona sets tone and where attention lands first. **It never moves the evidence bar.** "Never report" below outranks every persona, always: brutal means *unsparing about real defects*, not *finds more things*. A persona that drifts into nitpicking has failed twice — the review is wrong, and it cost more to be wrong.
+
+`--as adversary|operator|maintainer` swaps the voice; at high+ the parallel lenses take different personas so the fan-out is perspective-diverse. Both live in `references/personas.md`, gated above.
 
 ## Gather the diff (the only review scope)
 
@@ -53,17 +75,17 @@ A mixed diff gets multiple lenses, each applied only to the files in its domain.
 
 ## Review at the requested depth
 
-Every depth hunts the same things, in priority order: **correctness bugs** (concrete inputs/state → wrong behavior), **silent failures** (per `references/silent-failure-lens.md`), **violations of project conventions** (CLAUDE.md, invariants stated in nearby code comments), **security issues in the changed code**, **performance regressions**, **test coverage gaps** (per `references/test-coverage-lens.md`). Read both lens files at every depth — at low/medium apply them yourself as part of the single pass; at high/max they become dedicated agents. Nitpicks a senior engineer wouldn't raise don't make the list at any depth.
+Every depth hunts the same things, in priority order: **correctness bugs** (concrete inputs/state → wrong behavior), **silent failures**, **violations of project conventions** (CLAUDE.md, invariants stated in nearby code comments), **security issues in the changed code**, **performance regressions**, **test coverage gaps**. The two lens files back the silent-failure and test-coverage items — read them only when the diff has the surface they cover (see the gate table); a diff with no error handling doesn't need the silent-failure lens loaded. At high+ they go to dedicated agents rather than into your own context. Nitpicks a senior engineer wouldn't raise don't make the list at any depth.
 
 ### low / medium (default) — single-pass, self-verified
 
-Read the diff carefully with the CLAUDE.md context loaded. For each candidate finding, before keeping it: re-read the actual code (not just the diff hunk), check it against the false-positive list below, and construct the concrete failure scenario. No scenario → not a finding. Medium reads surrounding code where the diff alone is ambiguous; low stays close to the hunks.
+Read the diff carefully with the CLAUDE.md context loaded. For each candidate finding, before keeping it: re-read the actual code (not just the diff hunk), check it against the false-positive list below, and construct the concrete failure scenario. No scenario → not a finding. Medium reads surrounding code where the diff alone is ambiguous; low stays close to the hunks. No confidence scoring here — self-verification is re-reading the code, so mark what survives `CONFIRMED` and don't read the rubric.
 
 ### high / xhigh / max — parallel lenses + adversarial verification
 
-Orchestrate via the Workflow tool using the script in `references/review-workflow.md` — the `/cr` invocation at these levels is the user's explicit opt-in to multi-agent orchestration. The workflow fans out the lenses, dedups their findings at a barrier, and adversarially verifies each one; synthesis stays with you. The lenses:
+Orchestrate via the Workflow tool using the script in `references/review-workflow.md` — the `/cr` invocation at these levels is the user's explicit opt-in to multi-agent orchestration. The workflow fans out the lenses, dedups their findings at a barrier, verifies them **one agent per file** (not per finding), and at `max` spends extra refuters only on the ambiguous band; synthesis stays with you. The lenses:
 
-1. One agent per lens (skip lenses that don't apply, e.g. no git history on a fresh repo). Model tiering: **every lens runs Opus** — effort is the cost knob, not the model. Bug-scan and code-comment guidance get **xhigh effort** (deep semantic comparison is where reasoning depth converts to caught bugs); all other lenses get **medium effort** (checklist/retrieval-shaped sweeps, gated by verification anyway). See `references/review-workflow.md`:
+1. One agent per lens (skip lenses that don't apply, e.g. no git history on a fresh repo), each assigned a persona per `references/personas.md`. **Model tiering**: only the deep semantic lenses (`bug-scan`, `comment-contracts`) are worth Opus xhigh — the rest are checklist-shaped sweeps and run Sonnet medium, since verification gates their output anyway. Per-lens settings are in `references/review-workflow.md`. The lenses:
    - **CLAUDE.md compliance** — audit the diff against every relevant CLAUDE.md (guidance written for code-writing doesn't all apply to review; judge applicability).
    - **Bug scan** — read the changed hunks for real bugs; big issues, not nitpicks.
    - **Git history** — `git blame`/`git log` the modified code; flag changes that break something the history shows was deliberate.
@@ -71,7 +93,8 @@ Orchestrate via the Workflow tool using the script in `references/review-workflo
    - **Code-comment guidance** — invariants and warnings in comments within modified files that the change violates.
    - **Silent failures** — give the agent `references/silent-failure-lens.md`; it sweeps every error-handling site in the diff.
    - **Test coverage** — give the agent `references/test-coverage-lens.md`; it maps new behavior to tests and rates the gaps.
-2. For each candidate finding, launch a verification agent with the confidence rubric in `references/confidence-rubric.md` (give the rubric verbatim). Verifiers run on **Sonnet at medium effort** (set via the workflow's `model`/`effort` opts, or the Agent tool's `model` param) — verification is one bounded re-investigation per finding and is the token-heaviest stage; the finder lenses keep the session model. Verification **labels, it does not gate**: every finding that isn't an outright false positive (per "Never report" below) is reported, carrying its 0–100 confidence score — nothing real is dropped for merely scoring low. The score sets the finding's tier (see Report), not its survival. A verifier score near 0 means the finding was actively refuted (pre-existing, linter-caught, or no real scenario) — those, and only those, are dropped.
+2. Verification is **batched per file**: one Sonnet-medium agent per file reads that file once and scores every finding in it against the rubric in `references/confidence-rubric.md` (given verbatim). Re-reading the same file once per finding was the dominant verifier cost. A verifier that dies or returns no verdict for a finding leaves it **unverified**, not refuted — unverified findings are reported as `PLAUSIBLE`, never silently dropped.
+3. At `max` only, extra refuters run on the **ambiguous band** (score 30–79, plus unverified findings). Findings at ≥ 80 are already confirmed and findings under 30 are already refuted; more votes don't move either, so they don't get any.
 
 ## Never report (false positives)
 
@@ -84,14 +107,24 @@ Orchestrate via the Workflow tool using the script in `references/review-workflo
 - Intentional functionality changes that are the point of the diff
 - "Looks like a bug" that survives on vibes but has no concrete failure scenario
 
+This list outranks the persona, the domain lenses, and any verifier score.
+
 ## Report
 
 Always in chat, in this order:
 
 1. **Overview** — a few sentences: what the change does, its shape, and your overall read. For substantial PRs add brief sections (design/quality observations, test coverage, risks) in prose.
-2. **Findings** — call `ReportFindings` once with **every** finding that survived verification (i.e. wasn't refuted as a false positive), ranked by confidence score, highest first (empty array only if nothing survived). Report all tiers, not just the high-confidence ones — a genuinely useful finding that scored 70 is still worth the author's attention; surfacing it and letting them judge beats silently dropping it. Each finding carries `file`, `line`, `summary`, `failure_scenario`, `category`, and `verdict`: mark a finding `CONFIRMED` when its score is **≥ 80** (or you re-checked the code yourself at low/medium), and `PLAUSIBLE` below that. For `PLAUSIBLE` findings, fold the verifier's confidence and its one-line reason into the `failure_scenario` or `summary` so the reader knows why it's lower-confidence and can judge. Set `level` to the effort used. Do not duplicate the findings as prose text.
+2. **Findings** — call `ReportFindings` once with **every** finding that survived verification, ranked by confidence score, highest first (empty array only if nothing survived). Each finding carries `file`, `line`, `summary`, `failure_scenario`, `category`, and `verdict`. Set `level` to the effort used. Do not duplicate the findings as prose text.
 3. **Verdict** — one line: approve / approve with follow-ups / needs changes, plus the 1–2 things you'd actually act on.
 
-**`--comment`:** then post to the PR — follow `references/github-comment.md` (eligibility checks, format, sha-pinned links) exactly. Never post without the flag.
+**Verification labels, it does not gate** — the single statement of this rule; the rubric and the workflow script both defer here. Nothing real is dropped for merely scoring low; the score sets the tier, not survival:
+
+- **≥ 80**, corroborated across lenses, or self-verified at low/medium → `CONFIRMED`
+- **30–79**, or **unverified** (verifier died or returned nothing) → `PLAUSIBLE`; fold the score and the verifier's one-line reason into `summary`/`failure_scenario` so the reader can weigh it. An absent verdict is not a refutation
+- **under 30** → actively refuted (pre-existing, linter-caught, or no real scenario). These, and only these, are dropped
+
+**Paste-ready block:** compose the GitHub-comment markdown only in **PR mode** — locally there is no PR to paste it into and `ReportFindings` already renders the findings in chat. In PR mode, compose it when `--comment` was passed (then post it) or when the user asks.
+
+**`--comment`:** post to the PR — follow `references/github-comment.md` (eligibility checks, format, sha-pinned links) exactly. Never post without the flag.
 
 **`--fix`:** apply the confirmed findings to the working tree, then call `ReportFindings` again with `outcome` set per finding.
