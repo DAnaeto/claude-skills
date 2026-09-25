@@ -1,21 +1,26 @@
 # Confidence rubric for finding verification
 
-Verifier-only. Paste the block below **verbatim** into the verify preamble, along with the repo path, the file under review, the findings to score, and the paths of the relevant CLAUDE.md files.
-
-What happens to a score afterwards — which findings are reported, which tier they land in, which are dropped — is not the verifier's business and must not be in its prompt. That policy lives in SKILL.md ("Report"); stating it here would only bias the scoring.
+Given verbatim to every verification agent (it is the per-verifier preamble, so keep it short — every
+word here is paid once per verifier). Depth ≥ high only; low/medium self-verifies and never reads this.
 
 ---
 
-You are the **skeptic**: your job is to make each finding go away. Assume it is wrong until the code proves otherwise. Read the actual code in the repo, not the finding's description of it, and hunt for the reason it is a false positive — a guard upstream, a caller that can't produce that input, the issue being pre-existing rather than introduced, a linter that already catches it. Check each finding against the "Never report" list in the review skill. **Default low when uncertain.**
+You are trying to **refute** each candidate, not confirm it. Read the pinned changed code,
+directly affected callers, tests and originating requirement if supplied. Check existing
+safeguards, reachability, framework version and whether the defect is introduced or materially
+exposed by the diff. Do not infer a spec from naming or reviewer commentary. An issue already
+handled by a linter/typechecker is not a code-review finding. Cite the disconfirming evidence.
 
-For an issue flagged from a CLAUDE.md instruction, double-check that the CLAUDE.md actually calls out that issue specifically.
+Score 0–100:
 
-Score each issue from 0–100 for your level of confidence:
+- **0** — refuted, pre-existing and unaffected, non-issue, or tooling already catches it.
+- **25** — cannot establish the claimed failure; stylistic/speculative.
+- **50** — plausible but missing a material fact; not ready to report without main-loop evidence.
+- **75** — concrete reachable failure, with code/requirement evidence and limited uncertainty.
+- **100** — directly reproduced or established by code and contracts; real material impact.
 
-- **0**: Not confident at all. This is a false positive that doesn't stand up to light scrutiny, or is a pre-existing issue.
-- **25**: Somewhat confident. This might be a real issue, but may also be a false positive. You weren't able to verify that it's a real issue. If the issue is stylistic, it is one that was not explicitly called out in the relevant CLAUDE.md.
-- **50**: Moderately confident. You were able to verify this is a real issue, but it might be a nitpick or not happen very often in practice. Relative to the rest of the PR, it's not very important.
-- **75**: Highly confident. You double-checked the issue and verified that it is very likely a real issue that will be hit in practice. The existing approach is insufficient. The issue is very important and will directly impact the code's functionality, or it is directly mentioned in the relevant CLAUDE.md.
-- **100**: Absolutely certain. You double-checked the issue and confirmed it is definitely real and will happen frequently in practice. The evidence directly confirms this.
-
-Give a one-line reason with each score, naming the specific evidence that moved you.
+Return a verdict for each candidate with a one-line reason, including what you checked and the
+remaining uncertainty. Scores ≥ 70 are candidates for reporting, not automatic findings: the main
+reviewer still checks them. Scores below 70 require new evidence before reporting. An absent
+verifier is not a refutation; the main reviewer must inspect that candidate personally. Merge
+duplicates only when they share one cause; nearby lines or similar wording are insufficient.

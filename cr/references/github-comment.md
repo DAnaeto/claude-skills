@@ -1,6 +1,8 @@
-# Posting a review comment to GitHub (--comment only)
+# Posting a review to GitHub (--comment only)
 
-Posting is outward-facing: it happens only with an explicit `--comment`, and only after the checks below.
+Posting is outward-facing: it happens only with an explicit `--comment`, and only after the checks
+below. It posts a formal GitHub **review**, never a plain issue comment — this makes the finding show
+up as a review decision on the PR, not just a comment in the thread.
 
 ## Eligibility — check immediately before posting
 
@@ -9,49 +11,52 @@ Skip posting (and say why) if the PR:
 - is closed or merged
 - is a draft
 - doesn't need a review (automated PR, trivial and obviously fine)
-- already has a code review comment from you (don't double-post; offer to update instead)
+- already has a code review from you (don't double-post; offer to update instead)
+- has no surviving actionable findings — do not post a formal "no issues" review
 
 If the review took a while, re-run this check right before posting — state can change.
 
-## Comment format
+## Choosing the review event
 
-Use `gh pr comment` (never web requests). Keep it brief, no emojis, cite and link every finding.
+Never `APPROVE` — that's not this skill's job even when the diff is clean.
 
-With findings:
+- PR author is **not** you (`gh pr view <N> --json author` vs. `gh api user --jq .login`):
+  confirmed `critical`/`high` finding → `REQUEST_CHANGES`; otherwise `COMMENT`.
+- PR author **is** you: always `COMMENT`. GitHub's API rejects `REQUEST_CHANGES` (and `APPROVE`) from
+  a PR's own author — trying anyway fails the call, so don't attempt it.
+
+## Posting
+
+Use `gh pr review` (never `gh pr comment`, never a web request):
+
+```
+gh pr review <N> --request-changes --body "$BODY"   # confirmed critical/high finding, not own PR
+gh pr review <N> --comment --body "$BODY"            # other actionable findings, or own PR
+```
+
+## Review body format
+
+Keep it brief, no emojis or fabricated attribution; cite and link each verified finding:
 
 ```
 ### Code review
 
-Found <N> issues:
+1. [high] <concrete failure and minimal change>
+   <sha-pinned link>
 
-1. <brief description> (CLAUDE.md says "<...>")
-
-<sha-pinned link, see below>
-
-2. <brief description> (bug due to <file and snippet>)
-
-<sha-pinned link>
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-<sub>- If this code review was useful, please react with 👍. Otherwise, react with 👎.</sub>
+2. [medium] <concrete failure and minimal change>
+   <sha-pinned link>
 ```
 
-With no findings:
-
-```
-### Code review
-
-No issues found. Checked for bugs and CLAUDE.md compliance.
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-```
+Do not claim a review used Claude Code merely because a carrier used an Anthropic model. No
+reaction requests or automatic signatures. Include only findings from the final synthesized report.
 
 ## Sha-pinned link rules (GitHub won't render previews otherwise)
 
 Format: `https://github.com/<owner>/<repo>/blob/<full-sha>/<path>#L<start>-L<end>`
 
-- **Full** commit sha — resolve it first (`gh pr view <N> --json headRefOid`); command substitution inside the comment body will not work, the comment is rendered as literal Markdown
+- **Full** commit sha — resolve it first (`gh pr view <N> --json headRefOid`); command substitution
+  inside the comment body will not work, the comment is rendered as literal Markdown
 - Repo must be the one under review
 - `#` after the file path; range as `L<start>-L<end>`
 - Include ≥1 line of context each side (commenting on lines 5–6 → link `L4-L7`)

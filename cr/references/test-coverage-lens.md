@@ -9,12 +9,15 @@ Behavioral coverage, not line coverage. The question is never "what % is covered
 - Uncovered critical business-logic branches
 - Absent negative cases for validation logic
 - Missing concurrency/async coverage where the change is concurrent/async
+- Missing request/ownership/authorization negatives when a new endpoint or action changes access
+- A new spec-required behavior asserted only through a mock echo rather than the observable result
 
 ## Judge test quality, not just presence
 
-- Tests should pin behavior and contracts, not implementation details — flag tests that would break on a reasonable refactor, or that overfit (asserting exact strings/ordering that isn't part of the contract)
-- A test that can't fail when the behavior regresses is not coverage
-- Some paths are already covered by existing integration tests — check before flagging
+- Tests should pin behavior and contracts, not implementation details; a harmless refactor must not
+  break them. Verify whether an assertion can pass when the changed behavior is deliberately broken.
+- Over-mocking can conceal the exact bug under review; read real callers and fixtures before relying
+  on stubbed paths. Existing integration coverage counts; check it before flagging a gap.
 
 ## Rate every gap 1–10 before reporting
 

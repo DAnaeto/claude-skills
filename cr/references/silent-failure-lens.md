@@ -16,8 +16,10 @@ try/catch (try/except, Result types, error callbacks), fallback logic and defaul
 
 ## Severity and reporting
 
-- **CRITICAL** — true silent failure or a broad catch that hides unrelated errors → always a finding (category `silent-failure`, with the specific hidden-error scenario)
-- **HIGH** — unjustified fallback, useless/generic error message → finding
-- **MEDIUM** — missing context in an otherwise-surfaced error → prose mention at high/max only
+- **critical/high** — a changed path silently loses work, hides an exploitable or material error,
+  or reports success after a failed write; give the precise failure and affected caller.
+- **medium/low** — an unjustified fallback or unusable error message causes a concrete diagnostic
+  or user-visible failure. A broad catch is a prompt to investigate, not automatically a finding.
+- Missing context in an otherwise surfaced error is not a finding without meaningful impact.
 
 Respect the project's own error-handling contract from CLAUDE.md before flagging: some codebases deliberately distinguish "disable the subsystem" errors from "skip this one item" errors, or explicitly isolate per-item failures so one bad input can't abort a batch. A designed, documented degradation path is not a silent failure — flag only where the design isn't being followed or the degradation is invisible.

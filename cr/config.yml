@@ -1,0 +1,14 @@
+# cr skill config.
+#
+# bugScanModels: the model selector for the bug-scan lens at high/xhigh/max (see
+# references/review-workflow.md). Each entry is a modelRoles alias (@default, @slow, @smol, ...,
+# as configured in ~/.omp/agent/config.yml) or a raw `provider/model-id`, optionally suffixed
+# `bugScanModels` uses one pinned Anthropic and one pinned OpenAI xhigh pass. The eight-subagent
+# cap ignores selectors after the first two; `--models` remains available for explicit per-run
+# selection without editing this file.
+#
+# Only this exact shape (top-level `bugScanModels:` followed by `- "selector"` list items) is
+# parsed — this is not a general YAML config.
+bugScanModels:
+  - "@cr_anthropic"
+  - "@cr_openai"
